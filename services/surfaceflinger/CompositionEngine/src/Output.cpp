@@ -24,7 +24,9 @@
 #include <compositionengine/LayerFE.h>
 #include <compositionengine/LayerFECompositionState.h>
 #include <compositionengine/RenderSurface.h>
+#ifndef MTK_IN_DISPLAY_FINGERPRINT
 #include <compositionengine/UdfpsExtension.h>
+#endif
 #include <compositionengine/impl/HwcAsyncWorker.h>
 #include <compositionengine/impl/Output.h>
 #include <compositionengine/impl/OutputCompositionState.h>
@@ -994,9 +996,14 @@ void Output::writeCompositionState(const compositionengine::CompositionRefreshAr
 
 compositionengine::OutputLayer* Output::findLayerRequestingBackgroundComposition() const {
     compositionengine::OutputLayer* layerRequestingBgComposition = nullptr;
+
+#ifdef MTK_IN_DISPLAY_FINGERPRINT
+    for (auto* layer : getOutputLayersOrderedByZ()) {
+#else
     for (size_t i = 0; i < getOutputLayerCount(); i++) {
         compositionengine::OutputLayer* layer = getOutputLayerOrderedByZByIndex(i);
         compositionengine::OutputLayer* nextLayer = getOutputLayerOrderedByZByIndex(i + 1);
+#endif
 
         const auto* compState = layer->getLayerFE().getCompositionState();
 
@@ -1018,6 +1025,7 @@ compositionengine::OutputLayer* Output::findLayerRequestingBackgroundComposition
             layerRequestingBgComposition = layer;
         }
 
+#ifndef MTK_IN_DISPLAY_FINGERPRINT
         // If the next layer is the Udfps touched layer, enable client composition for it
         // because that somehow leads to the Udfps touched layer getting device composition
         // consistently.
@@ -1026,6 +1034,7 @@ compositionengine::OutputLayer* Output::findLayerRequestingBackgroundComposition
             layerRequestingBgComposition = layer;
             break;
         }
+#endif
     }
     return layerRequestingBgComposition;
 }
@@ -1561,6 +1570,19 @@ std::vector<LayerFE::LayerSettings> Output::generateClientCompositionRequests(
 
         const Region clip(viewportRegion.intersect(layerState.visibleRegion));
         ALOGV("Layer: %s", layerFE.getDebugName());
+#ifdef MTK_IN_DISPLAY_FINGERPRINT
+#define DITHER_LAYER_NAME " SurfaceView[UdfpsControllerOverlay](BLAST)"
+    if (!layerFE.mDither.checked){
+        layerFE.mDither.enabled = false;
+        ALOGV("Dither is off");
+        std::string layerName = layerFE.getDebugName();
+        if (layerName.find(DITHER_LAYER_NAME) != std::string::npos) {
+            layerFE.mDither.enabled = true;
+            ALOGV("Dither is on");
+        }
+        layerFE.mDither.checked = true;
+    }
+#endif
         if (clip.isEmpty()) {
             ALOGV("  Skipping for empty clip");
             firstLayer = false;

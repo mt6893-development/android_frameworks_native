@@ -19,7 +19,9 @@
 #include <compositionengine/DisplayColorProfile.h>
 #include <compositionengine/LayerFECompositionState.h>
 #include <compositionengine/Output.h>
+#ifndef MTK_IN_DISPLAY_FINGERPRINT
 #include <compositionengine/UdfpsExtension.h>
+#endif
 #include <compositionengine/impl/HwcBufferCache.h>
 #include <compositionengine/impl/OutputCompositionState.h>
 #include <compositionengine/impl/OutputLayer.h>
@@ -556,6 +558,9 @@ void OutputLayer::writeOutputDependentGeometryStateToHWC(HWC2::Layer* hwcLayer,
               sourceCrop.bottom, to_string(error).c_str(), static_cast<int32_t>(error));
     }
 
+#ifdef MTK_IN_DISPLAY_FINGERPRINT
+    if (auto error = hwcLayer->setZOrder(z); error != hal::Error::NONE) {
+#else
     uint32_t z_udfps = z;
     if ((strncmp(getLayerFE().getDebugName(), UDFPS_LAYER_NAME, strlen(UDFPS_LAYER_NAME)) == 0) ||
         (strncmp(getLayerFE().getDebugName(), UDFPS_BIOMETRIC_PROMPT_LAYER_NAME,
@@ -569,6 +574,7 @@ void OutputLayer::writeOutputDependentGeometryStateToHWC(HWC2::Layer* hwcLayer,
     }
 
     if (auto error = hwcLayer->setZOrder(z_udfps); error != hal::Error::NONE) {
+#endif
         ALOGE("[%s] Failed to set Z %u: %s (%d)", getLayerFE().getDebugName(), z,
               to_string(error).c_str(), static_cast<int32_t>(error));
     }
